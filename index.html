@@ -4,10 +4,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>AIパスポート試験対策クイズ</title>
-    <!-- PWA対応のための追加 -->
-    <link rel="manifest" href="./manifest.json">
-    <meta name="theme-color" content="#f5576c"/>
-    
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.7.77/Tone.js"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -493,21 +489,26 @@
             const prompt = `あなたはITパスポート試験の優秀なチューターです。以下の問題と解説に基づいて、ユーザーからの質問に簡潔かつ分かりやすく答えてください。\n\n# 問題\n${currentQuizData.question}\n\n# 正解\n${currentQuizData.answer}\n\n# 解説\n${currentQuizData.explanation}\n\n# ユーザーからの質問\n${userInput}\n\n# 回答：`;
             
             try {
-                const response = await fetch('/.netlify/functions/ask-ai', {
+                let chatHistory = [{ role: "user", parts: [{ text: prompt }] }];
+                const payload = { contents: chatHistory };
+                const apiKey = "";
+                const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${apiKey}`;
+                
+                const response = await fetch(apiUrl, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ prompt: prompt })
+                    body: JSON.stringify(payload)
                 });
                 
                 const result = await response.json();
                 
                 loadingIndicator.remove();
                 
-                if (response.ok && result.candidates && result.candidates.length > 0) {
+                if (result.candidates && result.candidates.length > 0) {
                     const text = result.candidates[0].content.parts[0].text;
                     appendChatMessage(text, 'ai');
                 } else {
-                    appendChatMessage(result.error || '申し訳ありません、回答を生成できませんでした。', 'ai');
+                    appendChatMessage('申し訳ありません、回答を生成できませんでした。', 'ai');
                 }
             } catch (error) {
                 console.error("AI chat error:", error);
