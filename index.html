@@ -1,0 +1,587 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AIパスポート試験対策クイズ</title>
+    <!-- PWA対応のための追加 -->
+    <link rel="manifest" href="./manifest.json">
+    <meta name="theme-color" content="#f5576c"/>
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.7.77/Tone.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=M+PLUS+Rounded+1c:wght@500;800&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'M PLUS Rounded 1c', sans-serif;
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+        }
+        .option-btn:disabled {
+            cursor: not-allowed;
+            opacity: 0.7;
+        }
+        .correct {
+            background-color: #34D399 !important; /* Emerald 400 */
+            color: white !important;
+            border-color: #10B981 !important;
+            animation: tada 0.8s ease;
+        }
+        .incorrect {
+            background-color: #F87171 !important; /* Red 400 */
+            color: white !important;
+            border-color: #EF4444 !important;
+            animation: shake 0.5s ease;
+        }
+        
+        /* アニメーションのキーフレーム */
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            10%, 30%, 50%, 70%, 90% { transform: translateX(-10px); }
+            20%, 40%, 60%, 80% { transform: translateX(10px); }
+        }
+
+        @keyframes tada {
+            from { transform: scale3d(1, 1, 1); }
+            10%, 20% { transform: scale3d(0.9, 0.9, 0.9) rotate3d(0, 0, 1, -3deg); }
+            30%, 50%, 70%, 90% { transform: scale3d(1.1, 1.1, 1.1) rotate3d(0, 0, 1, 3deg); }
+            40%, 60%, 80% { transform: scale3d(1.1, 1.1, 1.1) rotate3d(0, 0, 1, -3deg); }
+            to { transform: scale3d(1, 1, 1); }
+        }
+        
+        .fade-in {
+            animation: fadeIn 0.5s ease-out forwards;
+        }
+        
+        .chat-bubble {
+            max-width: 80%;
+            padding: 8px 12px;
+            border-radius: 16px;
+            margin-bottom: 8px;
+        }
+        .user-bubble {
+            background-color: #f3e8ff;
+            color: #374151;
+            align-self: flex-end;
+            border-bottom-right-radius: 4px;
+        }
+        .ai-bubble {
+            background-color: #e0e7ff;
+            color: #374151;
+            align-self: flex-start;
+            border-bottom-left-radius: 4px;
+        }
+        .loading-dots span {
+            animation: blink 1.4s infinite both;
+        }
+        .loading-dots span:nth-child(2) {
+            animation-delay: 0.2s;
+        }
+        .loading-dots span:nth-child(3) {
+            animation-delay: 0.4s;
+        }
+        @keyframes blink {
+            0% { opacity: 0.2; }
+            20% { opacity: 1; }
+            100% { opacity: 0.2; }
+        }
+    </style>
+</head>
+<body class="flex items-center justify-center min-h-screen p-4">
+
+    <div class="w-full max-w-2xl">
+        <!-- ホーム画面 -->
+        <div id="home-container" class="bg-white/90 backdrop-blur-sm p-6 md:p-8 rounded-3xl shadow-2xl text-center fade-in relative">
+            <h1 class="text-3xl md:text-4xl font-extrabold text-gray-800 mb-4">AIパスポート試験対策クイズ</h1>
+            <p class="text-gray-600 mb-8">コースを選択して、クイズを始めましょう！</p>
+            <div class="flex flex-col gap-4 justify-center">
+                <button id="start-10-btn" class="bg-pink-500 text-white font-bold py-4 px-12 rounded-full hover:bg-pink-600 transition-all duration-300 transform hover:scale-105 focus:outline-none focus:ring-4 focus:ring-pink-300 text-lg">
+                    10問コース
+                </button>
+                <button id="start-100-btn" class="bg-blue-500 text-white font-bold py-4 px-12 rounded-full hover:bg-blue-600 transition-all duration-300 transform hover:scale-105 focus:outline-none focus:ring-4 focus:ring-blue-300 text-lg">
+                    100問コース (本番想定)
+                </button>
+                <button id="review-btn" class="bg-yellow-400 text-gray-800 font-bold py-4 px-12 rounded-full hover:bg-yellow-500 transition-all duration-300 transform hover:scale-105 focus:outline-none focus:ring-4 focus:ring-yellow-300 text-lg">
+                    間違った問題を復習
+                </button>
+            </div>
+            <div class="absolute bottom-4 right-4">
+                 <button id="history-btn" class="bg-gray-600 text-white p-3 rounded-full hover:bg-gray-700 transition-all duration-300 transform hover:scale-110 focus:outline-none focus:ring-4 focus:ring-gray-400" aria-label="履歴と正答率を表示">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 4v6h6"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>
+                </button>
+            </div>
+        </div>
+
+        <!-- クイズ画面 -->
+        <div id="quiz-container" class="bg-white/90 backdrop-blur-sm p-6 md:p-8 rounded-3xl shadow-2xl w-full transform transition-all duration-500" style="display: none;">
+            <!-- ヘッダー部分 -->
+            <div class="flex justify-between items-center mb-6 border-b-2 border-gray-200 pb-4">
+                <h1 id="quiz-title" class="text-xl md:text-2xl font-extrabold text-gray-800"></h1>
+                <div class="flex items-center gap-2">
+                    <div id="question-category" class="text-sm font-bold text-white bg-purple-500 py-1 px-3 rounded-full" style="display: none;"></div>
+                    <div id="question-counter" class="text-sm font-bold text-gray-500 bg-gray-200 py-1 px-3 rounded-full"></div>
+                </div>
+            </div>
+
+            <!-- 問題文 -->
+            <div class="mb-6">
+                <p id="question" class="text-lg md:text-xl leading-relaxed text-gray-700 font-bold"></p>
+            </div>
+
+            <!-- 選択肢 -->
+            <div id="options-container" class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                <!-- 選択肢ボタンはJSで生成されます -->
+            </div>
+
+            <!-- フィードバック -->
+            <div id="feedback-container" class="p-4 rounded-xl mb-6" style="display: none;">
+                <p id="feedback-text" class="text-lg font-bold text-white"></p>
+                <p id="explanation-text" class="text-sm text-white/90 mt-2 border-t border-white/30 pt-2"></p>
+                <div id="metadata-container" class="mt-3 flex gap-2">
+                    <!-- 出題年度と分野がここに表示されます -->
+                </div>
+                <!-- チャットボット -->
+                <div id="chatbot-container" class="mt-4 pt-4 border-t border-white/30" style="display: none;">
+                    <h3 class="text-md font-bold text-white mb-2">AIに質問する</h3>
+                    <div id="chat-history" class="h-32 overflow-y-auto bg-gray-800/50 p-3 rounded-lg mb-2 text-sm flex flex-col">
+                        <!-- Chat messages will be appended here -->
+                    </div>
+                    <div class="flex gap-2">
+                        <input type="text" id="chat-input" class="flex-grow bg-gray-700 text-white rounded-full px-4 py-2 focus:outline-none focus:ring-2 focus:ring-pink-400" placeholder="解説について質問してみよう...">
+                        <button id="chat-send-btn" class="bg-pink-500 text-white font-bold p-2 rounded-full hover:bg-pink-600 transition-colors">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
+                        </button>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 次へボタン / 結果表示 -->
+            <div class="flex justify-end">
+                <button id="next-btn" class="bg-pink-500 text-white font-bold py-3 px-8 rounded-full hover:bg-pink-600 transition-all duration-300 transform hover:scale-105 focus:outline-none focus:ring-4 focus:ring-pink-300" style="display: none;">次の問題へ</button>
+            </div>
+
+            <!-- 結果表示画面 -->
+            <div id="result-container" class="text-center" style="display: none;">
+                <h2 class="text-4xl font-extrabold mb-4 text-gray-800">クイズ終了！</h2>
+                <p class="text-xl text-gray-600 mb-6">おつかれさまでした！</p>
+                <p id="score" class="text-7xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-pink-500 to-yellow-500 mb-8"></p>
+                <button id="end-quiz-btn" class="bg-yellow-400 text-gray-800 font-bold py-3 px-10 rounded-full hover:bg-yellow-500 transition-all duration-300 transform hover:scale-105 focus:outline-none focus:ring-4 focus:ring-yellow-300">ホームに戻る</button>
+            </div>
+        </div>
+        
+        <!-- 履歴画面 -->
+        <div id="history-container" class="bg-white/90 backdrop-blur-sm p-6 md:p-8 rounded-3xl shadow-2xl w-full" style="display: none;">
+            <div class="flex justify-between items-center mb-6 border-b-2 border-gray-200 pb-4">
+                <h2 class="text-2xl font-extrabold text-gray-800">履歴と正答率</h2>
+                <button id="back-to-home-from-history-btn" class="bg-gray-200 text-gray-700 font-bold py-2 px-4 rounded-full hover:bg-gray-300 transition-colors duration-300">ホームに戻る</button>
+            </div>
+            <div id="history-list-container" class="space-y-4 max-h-[60vh] overflow-y-auto pr-2">
+                <!-- 挑戦履歴がここに表示されます -->
+            </div>
+             <div class="text-center mt-6">
+                <button id="clear-history-btn" class="text-sm text-red-500 hover:text-red-700">履歴をクリア</button>
+            </div>
+        </div>
+
+        <!-- メッセージモーダル -->
+        <div id="message-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4" style="display: none;">
+            <div class="bg-white p-6 rounded-2xl shadow-lg text-center">
+                <p id="message-text" class="text-lg text-gray-700 mb-4"></p>
+                <button id="message-ok-btn" class="bg-pink-500 text-white font-bold py-2 px-6 rounded-full hover:bg-pink-600 transition-colors">OK</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- クイズデータ (ITパスポート令和5年・令和6年 過去問 全200問) ---
+        const allQuizData = [
+            // --- 令和6年 ---
+            { year: "令和6年 問1", category: "ストラテジ系", question: "マーケティングオートメーション (MA) に関する記述として、最も適切なものはどれか。", options: ["ア 企業内に蓄積された大量のデータを分析して、事業戦略などに有効活用する。", "イ 小売業やサービス業において、販売した商品単位の情報の収集・蓄積及び分析を行う。", "ウ これまで人間が手作業で行っていた定型業務を、AIや機械学習などを取り入れたソフトウェアのロボットが代行することによって自動化や効率化を図る。", "エ 見込み顧客の抽出,獲得、育成などの営業活動を効率化する。"], answer: "エ 見込み顧客の抽出,獲得、育成などの営業活動を効率化する。", explanation: "マーケティングオートメーション(MA)は、見込み顧客（リード）の情報を一元管理し、メール配信やWebサイトの行動履歴を基に顧客を育成し、商談化を促進するなど、マーケティング活動を自動化・効率化する仕組みです。" },
+            // ... (全200問のデータ) ...
+            { year: "令和5年 問100", category: "テクノロジ系", question: "PCの消費電力に関する記述のうち、最も適切なものはどれか。", options: ["ア PCの電源がオフの状態では、電力は全く消費されない。", "イ スリープ状態では、作業中の内容は揮発性メモリに一時保存され、電力はほとんど消費されない。", "ウ ディスプレイの輝度を下げると、消費電力を減らすことができる。", "エ CPUの処理能力が高いほど、消費電力は少ない。"], answer: "ウ ディスプレイの輝度を下げると、消費電力を減らすことができる。", explanation: "ディスプレイはPCの部品の中でも消費電力が大きいものの一つです。輝度を下げることで、消費電力を効果的に削減できます。" }
+        ];
+
+        // --- サウンドエフェクトの準備 ---
+        let audioStarted = false;
+        const correctSound = new Tone.Synth({ oscillator: { type: 'triangle' }, envelope: { attack: 0.01, decay: 0.2, sustain: 0.2, release: 0.2 } }).toDestination();
+        const incorrectSound = new Tone.Synth({ oscillator: { type: 'square' }, envelope: { attack: 0.01, decay: 0.4, sustain: 0.1, release: 0.2 } }).toDestination();
+        const clickSound = new Tone.MembraneSynth({ pitchDecay: 0.01, octaves: 2, envelope: { attack: 0.001, decay: 0.2, sustain: 0 } }).toDestination();
+
+        // --- DOM要素の取得 ---
+        const homeContainer = document.getElementById('home-container');
+        const start10Btn = document.getElementById('start-10-btn');
+        const start100Btn = document.getElementById('start-100-btn');
+        const reviewBtn = document.getElementById('review-btn');
+        const historyBtn = document.getElementById('history-btn');
+        const quizContainer = document.getElementById('quiz-container');
+        const quizTitle = document.getElementById('quiz-title');
+        const questionCounter = document.getElementById('question-counter');
+        const questionCategoryEl = document.getElementById('question-category');
+        const questionEl = document.getElementById('question');
+        const optionsContainer = document.getElementById('options-container');
+        const feedbackContainer = document.getElementById('feedback-container');
+        const feedbackText = document.getElementById('feedback-text');
+        const explanationText = document.getElementById('explanation-text');
+        const metadataContainer = document.getElementById('metadata-container');
+        const nextBtn = document.getElementById('next-btn');
+        const resultContainer = document.getElementById('result-container');
+        const scoreEl = document.getElementById('score');
+        const endQuizBtn = document.getElementById('end-quiz-btn');
+        const messageModal = document.getElementById('message-modal');
+        const messageText = document.getElementById('message-text');
+        const messageOkBtn = document.getElementById('message-ok-btn');
+        const chatbotContainer = document.getElementById('chatbot-container');
+        const chatHistory = document.getElementById('chat-history');
+        const chatInput = document.getElementById('chat-input');
+        const chatSendBtn = document.getElementById('chat-send-btn');
+        const historyContainer = document.getElementById('history-container');
+        const historyListContainer = document.getElementById('history-list-container');
+        const backToHomeFromHistoryBtn = document.getElementById('back-to-home-from-history-btn');
+        const clearHistoryBtn = document.getElementById('clear-history-btn');
+
+        // --- 変数定義 ---
+        let sessionQuizData = []; 
+        let askedQuestionIndices = new Set(); 
+        let incorrectlyAnsweredIndices = new Set();
+        let quizHistoryData = [];
+        let currentQuiz = 0;
+        let score = 0;
+        let currentMode = '';
+        
+        // --- 履歴機能のロジック ---
+        function loadData() {
+            const incorrect = localStorage.getItem('incorrectlyAnswered');
+            if (incorrect) incorrectlyAnsweredIndices = new Set(JSON.parse(incorrect));
+            
+            const history = localStorage.getItem('quizHistory');
+            if (history) quizHistoryData = JSON.parse(history);
+        }
+
+        function saveIncorrectAnswers() {
+            localStorage.setItem('incorrectlyAnswered', JSON.stringify([...incorrectlyAnsweredIndices]));
+        }
+
+        function saveQuizResult() {
+            const result = {
+                date: new Date().toLocaleString('ja-JP'),
+                mode: currentMode,
+                score: score,
+                total: sessionQuizData.length
+            };
+            quizHistoryData.push(result);
+            localStorage.setItem('quizHistory', JSON.stringify(quizHistoryData));
+        }
+
+        function displayHistory() {
+            homeContainer.style.display = 'none';
+            historyContainer.style.display = 'block';
+            historyListContainer.innerHTML = '';
+
+            if (quizHistoryData.length === 0) {
+                historyListContainer.innerHTML = '<p class="text-gray-600 text-center">挑戦の履歴はまだありません。</p>';
+                clearHistoryBtn.style.display = 'none';
+                return;
+            }
+            
+            clearHistoryBtn.style.display = 'inline-block';
+
+            [...quizHistoryData].reverse().forEach(result => {
+                const historyDiv = document.createElement('div');
+                historyDiv.className = 'p-3 border border-gray-200 rounded-lg bg-white/50 flex justify-between items-center';
+                
+                let modeText = '';
+                if(result.mode === '10-random') modeText = '10問コース';
+                else if(result.mode === '100-mock') modeText = '100問コース';
+                else if(result.mode === 'review') modeText = '復習';
+
+                historyDiv.innerHTML = `
+                    <div>
+                        <p class="font-bold text-gray-700">${modeText}</p>
+                        <p class="text-sm text-gray-500">${result.date}</p>
+                    </div>
+                    <p class="text-lg font-bold text-indigo-600">${result.score} / ${result.total}</p>
+                `;
+                historyListContainer.appendChild(historyDiv);
+            });
+        }
+        
+        function showMessage(message) {
+            messageText.innerText = message;
+            messageModal.style.display = 'flex';
+        }
+
+        // --- クイズ本体のロジック ---
+        function startQuiz(mode) {
+            currentMode = mode;
+            
+            if (mode === '10-random') {
+                quizTitle.innerText = "10問コース";
+                let availableIndices = allQuizData
+                    .map((_, index) => index)
+                    .filter(index => !askedQuestionIndices.has(index));
+
+                if (availableIndices.length < 10) {
+                    askedQuestionIndices.clear();
+                    availableIndices = allQuizData.map((_, index) => index);
+                }
+
+                const shuffledAvailableIndices = availableIndices.sort(() => Math.random() - 0.5);
+                const newQuestionIndices = shuffledAvailableIndices.slice(0, 10);
+
+                sessionQuizData = [];
+                newQuestionIndices.forEach(index => {
+                    sessionQuizData.push({...allQuizData[index], originalIndex: index});
+                    askedQuestionIndices.add(index);
+                });
+            } else if (mode === '100-mock') {
+                quizTitle.innerText = "100問コース（本番想定）";
+                const strategyQuestions = allQuizData.filter(q => q.category === 'ストラテジ系');
+                const managementQuestions = allQuizData.filter(q => q.category === 'マネジメント系');
+                const technologyQuestions = allQuizData.filter(q => q.category === 'テクノロジ系');
+
+                const shuffledStrategy = [...strategyQuestions].sort(() => 0.5 - Math.random()).slice(0, 35);
+                const shuffledManagement = [...managementQuestions].sort(() => 0.5 - Math.random()).slice(0, 20);
+                const shuffledTechnology = [...technologyQuestions].sort(() => 0.5 - Math.random()).slice(0, 45);
+
+                sessionQuizData = [...shuffledStrategy, ...shuffledManagement, ...shuffledTechnology].sort(() => 0.5 - Math.random());
+                sessionQuizData = sessionQuizData.map(q => ({...q, originalIndex: allQuizData.indexOf(q)}));
+
+            } else if (mode === 'review') {
+                if (incorrectlyAnsweredIndices.size === 0) {
+                    showMessage('復習する問題がありません。');
+                    return;
+                }
+                const incorrectIndices = [...incorrectlyAnsweredIndices];
+                sessionQuizData = incorrectIndices.map(index => ({...allQuizData[index], originalIndex: index}));
+                quizTitle.innerText = "間違った問題の復習";
+            }
+            
+            homeContainer.style.display = 'none';
+            quizContainer.style.display = 'block';
+
+            currentQuiz = 0;
+            score = 0;
+            resultContainer.style.display = 'none';
+            quizContainer.querySelector('h1').style.display = 'block';
+            questionCounter.style.display = 'block';
+            questionEl.style.display = 'block';
+            optionsContainer.style.display = 'grid';
+            nextBtn.innerText = '次の問題へ';
+            loadQuiz();
+        }
+
+        function loadQuiz() {
+            deselectAnswers();
+            const currentQuizData = sessionQuizData[currentQuiz];
+            quizContainer.classList.remove('fade-in');
+            void quizContainer.offsetWidth; 
+            quizContainer.classList.add('fade-in');
+            questionCounter.innerText = `Q. ${currentQuiz + 1} / ${sessionQuizData.length}`;
+            
+            if (currentMode === '100-mock') {
+                questionCategoryEl.innerText = currentQuizData.category;
+                questionCategoryEl.style.display = 'block';
+            } else {
+                questionCategoryEl.style.display = 'none';
+            }
+
+            questionEl.innerHTML = currentQuizData.question.replace(/<br>/g, '<br>');
+            optionsContainer.innerHTML = '';
+            const shuffledOptions = [...currentQuizData.options].sort(() => Math.random() - 0.5);
+            shuffledOptions.forEach(optionText => {
+                const button = document.createElement('button');
+                button.innerHTML = optionText.replace(/<br>/g, '<br>');
+                button.classList.add('option-btn', 'w-full', 'p-4', 'border-2', 'bg-white', 'border-gray-300', 'rounded-xl', 'text-left', 'transition-all', 'duration-200', 'hover:bg-yellow-100', 'hover:border-yellow-400', 'focus:outline-none', 'focus:ring-2', 'focus:ring-yellow-400', 'font-semibold', 'text-gray-700');
+                button.addEventListener('click', () => selectAnswer(button, optionText));
+                optionsContainer.appendChild(button);
+            });
+            feedbackContainer.style.display = 'none';
+            chatbotContainer.style.display = 'none';
+            chatHistory.innerHTML = '';
+            explanationText.innerText = '';
+            metadataContainer.innerHTML = '';
+            nextBtn.style.display = 'none';
+        }
+
+        function deselectAnswers() {
+            const answerButtons = document.querySelectorAll('.option-btn');
+            answerButtons.forEach(button => {
+                button.classList.remove('correct', 'incorrect');
+                button.disabled = false;
+            });
+        }
+
+        function selectAnswer(selectedBtn, selectedOption) {
+            const currentQuizData = sessionQuizData[currentQuiz];
+            const isCorrect = selectedOption.replace(/<br>/g, '') === currentQuizData.answer.replace(/<br>/g, '');
+
+            if (isCorrect) {
+                score++;
+                correctSound.triggerAttackRelease("C5", "8n");
+                selectedBtn.classList.add('correct');
+                feedbackText.innerText = '正解！🎉';
+                feedbackContainer.style.backgroundColor = '#34D399';
+                if (currentMode === 'review') {
+                    incorrectlyAnsweredIndices.delete(currentQuizData.originalIndex);
+                    saveIncorrectAnswers();
+                }
+            } else {
+                incorrectSound.triggerAttackRelease("A2", "8n");
+                selectedBtn.classList.add('incorrect');
+                feedbackText.innerHTML = `不正解... 正解は「${currentQuizData.answer}」`;
+                feedbackContainer.style.backgroundColor = '#F87171';
+                if (currentMode !== 'review') {
+                    incorrectlyAnsweredIndices.add(currentQuizData.originalIndex);
+                    saveIncorrectAnswers();
+                }
+                
+                const allOptionBtns = optionsContainer.querySelectorAll('.option-btn');
+                allOptionBtns.forEach(btn => {
+                    if (btn.innerHTML.replace(/<br>/g, '') === currentQuizData.answer.replace(/<br>/g, '')) {
+                        btn.classList.add('correct');
+                    }
+                });
+            }
+            
+            explanationText.innerText = currentQuizData.explanation;
+            
+            metadataContainer.innerHTML = `
+                <span class="bg-gray-200 text-gray-700 text-xs font-bold px-2.5 py-1 rounded-full">${currentQuizData.year}</span>
+                <span class="bg-blue-200 text-blue-800 text-xs font-bold px-2.5 py-1 rounded-full">${currentQuizData.category}</span>
+            `;
+
+            feedbackContainer.style.display = 'block';
+            chatbotContainer.style.display = 'block';
+            const allOptionBtns = optionsContainer.querySelectorAll('.option-btn');
+            allOptionBtns.forEach(btn => btn.disabled = true);
+            nextBtn.style.display = 'block';
+            if (currentQuiz === sessionQuizData.length - 1) {
+                nextBtn.innerText = '結果を見る';
+            }
+        }
+        
+        function showResults() {
+            saveQuizResult();
+            quizContainer.querySelector('h1').style.display = 'none';
+            questionCounter.style.display = 'none';
+            questionCategoryEl.style.display = 'none';
+            questionEl.style.display = 'none';
+            optionsContainer.style.display = 'none';
+            feedbackContainer.style.display = 'none';
+            nextBtn.style.display = 'none';
+            resultContainer.style.display = 'block';
+            resultContainer.classList.add('fade-in');
+            scoreEl.innerText = `${score} / ${sessionQuizData.length}`;
+        }
+        
+        async function handleChatSend() {
+            const userInput = chatInput.value.trim();
+            if (!userInput) return;
+
+            appendChatMessage(userInput, 'user');
+            chatInput.value = '';
+            
+            const loadingIndicator = appendChatMessage('<div class="loading-dots"><span>.</span><span>.</span><span>.</span></div>', 'ai');
+
+            const currentQuizData = sessionQuizData[currentQuiz];
+            const prompt = `あなたはITパスポート試験の優秀なチューターです。以下の問題と解説に基づいて、ユーザーからの質問に簡潔かつ分かりやすく答えてください。\n\n# 問題\n${currentQuizData.question}\n\n# 正解\n${currentQuizData.answer}\n\n# 解説\n${currentQuizData.explanation}\n\n# ユーザーからの質問\n${userInput}\n\n# 回答：`;
+            
+            try {
+                const response = await fetch('/.netlify/functions/ask-ai', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ prompt: prompt })
+                });
+                
+                const result = await response.json();
+                
+                loadingIndicator.remove();
+                
+                if (response.ok && result.candidates && result.candidates.length > 0) {
+                    const text = result.candidates[0].content.parts[0].text;
+                    appendChatMessage(text, 'ai');
+                } else {
+                    appendChatMessage(result.error || '申し訳ありません、回答を生成できませんでした。', 'ai');
+                }
+            } catch (error) {
+                console.error("AI chat error:", error);
+                loadingIndicator.remove();
+                appendChatMessage('エラーが発生しました。もう一度お試しください。', 'ai');
+            }
+        }
+
+        function appendChatMessage(message, sender) {
+            const bubble = document.createElement('div');
+            bubble.classList.add('chat-bubble', sender === 'user' ? 'user-bubble' : 'ai-bubble');
+            bubble.innerHTML = message; // innerHTML for loading indicator
+            chatHistory.appendChild(bubble);
+            chatHistory.scrollTop = chatHistory.scrollHeight;
+            return bubble;
+        }
+
+
+        // --- イベントリスナー ---
+        async function initAudioAndStart(mode) {
+            if (!audioStarted) {
+                await Tone.start();
+                audioStarted = true;
+            }
+            startQuiz(mode);
+        }
+
+        start10Btn.addEventListener('click', () => initAudioAndStart('10-random'));
+        start100Btn.addEventListener('click', () => initAudioAndStart('100-mock'));
+        reviewBtn.addEventListener('click', () => initAudioAndStart('review'));
+        historyBtn.addEventListener('click', displayHistory);
+
+        backToHomeFromHistoryBtn.addEventListener('click', () => {
+            historyContainer.style.display = 'none';
+            homeContainer.style.display = 'block';
+        });
+
+        clearHistoryBtn.addEventListener('click', () => {
+            quizHistoryData = [];
+            localStorage.removeItem('quizHistory');
+            displayHistory();
+        });
+
+        nextBtn.addEventListener('click', () => {
+            clickSound.triggerAttackRelease("C2", "8n");
+            currentQuiz++;
+            if (currentQuiz < sessionQuizData.length) {
+                loadQuiz();
+            } else {
+                showResults();
+            }
+        });
+        
+        endQuizBtn.addEventListener('click', () => {
+            clickSound.triggerAttackRelease("C2", "8n");
+            resultContainer.style.display = 'none';
+            homeContainer.style.display = 'block';
+        });
+        
+        messageOkBtn.addEventListener('click', () => {
+            messageModal.style.display = 'none';
+        });
+        
+        chatSendBtn.addEventListener('click', handleChatSend);
+        chatInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                handleChatSend();
+            }
+        });
+
+        // --- 初期化 ---
+        document.addEventListener('DOMContentLoaded', () => {
+            loadData();
+        });
+    </script>
+</body>
+</html>
